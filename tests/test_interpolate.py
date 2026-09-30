@@ -118,7 +118,7 @@ class TestInterp1D:
 
     @pytest.mark.unit
     def test_interp1d_even_spaced(self):
-        """Test for interpolating vwith evenly spaced grid."""
+        """Test for interpolating with an evenly spaced grid."""
         xp = np.linspace(0, 2 * np.pi, 100)
         x = np.linspace(0, 2 * np.pi, 300)[10:-10]
         f = lambda x: np.array([np.sin(x), np.cos(x)])
