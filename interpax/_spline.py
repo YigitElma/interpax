@@ -79,7 +79,9 @@ class Interpolator1D(AbstractInterpolator):
     even_spacing : bool
         if True, user ensures that x is evenly spaced with constant
         dx (there won't be internal checks). This helps finding the
-        neighboring points for the query positions faster. Defalts to False.
+        neighboring points for the query positions faster. Defaults to False.
+        If periodic, x must cover one full period without the endpoint, e.g.
+        ``np.linspace(0, period, N, endpoint=False)``.
     fx : ndarray, optional
         first derivatives of f with respect to x at the knots. For cubic methods, if
         given these are used in place of the derivatives approximated by ``method``.
@@ -203,7 +205,9 @@ class Interpolator2D(AbstractInterpolator):
     even_spacing : bool
         if True, user ensures that each array x, y is evenly spaced with constant
         dx, dy (there won't be internal checks). This helps finding the
-        neighboring points for the query positions faster. Defalts to False.
+        neighboring points for the query positions faster. Defaults to False.
+        Along periodic axes, the knots must cover one full period without the
+        endpoint, e.g. ``np.linspace(0, period, N, endpoint=False)``.
     fx, fy, fxy : ndarray, optional
         derivatives df/dx, df/dy, d2f/dxdy at the knots. For cubic methods, any that
         are given are used in place of the derivatives approximated by ``method``.
@@ -350,7 +354,9 @@ class Interpolator3D(AbstractInterpolator):
     even_spacing : bool
         if True, user ensures that each array x, y, z is evenly spaced with constant
         dx, dy and dz (there won't be internal checks). This helps finding the
-        neighboring points for the query positions faster. Defalts to False.
+        neighboring points for the query positions faster. Defaults to False.
+        Along periodic axes, the knots must cover one full period without the
+        endpoint, e.g. ``np.linspace(0, period, N, endpoint=False)``.
     fx, fy, fz, fxy, fxz, fyz, fxyz : ndarray, optional
         derivatives df/dx, df/dy, df/dz, d2f/dxdy, d2f/dxdz, d2f/dydz, d3f/dxdydz at
         the knots. For cubic methods, any that are given are used in place of the
@@ -541,7 +547,9 @@ def interp1d(
     even_spacing : bool
         if True, user ensures that x is evenly spaced with constant
         dx (there won't be internal checks). This helps finding the
-        neighboring points for the query positions faster. Defalts to False.
+        neighboring points for the query positions faster. Defaults to False.
+        If periodic, x must cover one full period without the endpoint, e.g.
+        ``np.linspace(0, period, N, endpoint=False)``.
     fx : ndarray, optional
         first derivatives of f with respect to x at the knots. For cubic methods, if
         given these are used in place of the derivatives approximated by ``method``.
@@ -726,7 +734,9 @@ def interp2d(  # noqa: C901 - FIXME: break this up into simpler pieces
     even_spacing : bool
         if True, user ensures that each array x, y is evenly spaced with constant
         dx, dy (there won't be internal checks). This helps finding the
-        neighboring points for the query positions faster. Defalts to False.
+        neighboring points for the query positions faster. Defaults to False.
+        Along periodic axes, the knots must cover one full period without the
+        endpoint, e.g. ``np.linspace(0, period, N, endpoint=False)``.
     fx, fy, fxy : ndarray, optional
         derivatives df/dx, df/dy, d2f/dxdy at the knots. For cubic methods, any that
         are given are used in place of the derivatives approximated by ``method``.
@@ -969,7 +979,9 @@ def interp3d(  # noqa: C901 - FIXME: break this up into simpler pieces
     even_spacing : bool
         if True, user ensures that each array x, y, z is evenly spaced with constant
         dx, dy and dz (there won't be internal checks). This helps finding the
-        neighboring points for the query positions faster. Defalts to False.
+        neighboring points for the query positions faster. Defaults to False.
+        Along periodic axes, the knots must cover one full period without the
+        endpoint, e.g. ``np.linspace(0, period, N, endpoint=False)``.
     fx, fy, fz, fxy, fxz, fyz, fxyz : ndarray, optional
         derivatives df/dx, df/dy, df/dz, d2f/dxdy, d2f/dxdz, d2f/dydz, d3f/dxdydz at
         the knots. For cubic methods, any that are given are used in place of the
