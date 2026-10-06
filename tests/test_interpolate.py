@@ -419,7 +419,7 @@ class TestInterp3D:
 
         fq = interp3d(x, y, z, xp, yp, zp, fp, method="cubic")
         np.testing.assert_allclose(fq, f(x, y, z).T, rtol=1e-5, atol=5e-3)
-        
+
         fq = interp3d(x, y, z, xp, yp, zp, fp, method="monotonic")
         np.testing.assert_allclose(fq, f(x, y, z).T, rtol=1e-2, atol=1e-2)
 
@@ -445,7 +445,7 @@ class TestInterp3D:
 
         fq = interp3d(x, y, z, xp, yp, zp, fp, method="cubic", even_spacing=True)
         np.testing.assert_allclose(fq, f(x, y, z).T, rtol=1e-5, atol=5e-3)
-        
+
         fq = interp3d(x, y, z, xp, yp, zp, fp, method="monotonic", even_spacing=True)
         np.testing.assert_allclose(fq, f(x, y, z).T, rtol=1e-2, atol=1e-2)
 

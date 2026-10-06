@@ -597,7 +597,7 @@ def interp1d(
 
     # find the index
     if not even_spacing:
-        i = jnp.clip(jnp.searchsorted(x, xq, side="right"), 1, len(x) - 1)
+        i = jnp.clip(jnp.searchsorted(x, xq, side="right").astype(int), 1, len(x) - 1)
     else:
         dx = x[1] - x[0]
         i = jnp.clip(jnp.floor((xq - x[0]) / dx).astype(int) + 1, 1, len(x) - 1)
@@ -615,20 +615,24 @@ def interp1d(
     elif method == "linear":
 
         def derivative0_linear():
-            df = f[i] - f[i - 1]
-            dx = x[i] - x[i - 1]
+            f0, f1 = _take_neighbor_data(f, i)
+            x0, x1 = _take_neighbor_data(x, i)
+            df = f1 - f0
+            dx = x1 - x0
             dxi = jnp.where(dx == 0, 0, 1 / dx)
-            delta = xq - x[i - 1]
+            delta = xq - x0
             fq = jnp.where(
                 (dx == 0),
-                f[i].T,
-                f[i - 1].T + (delta * dxi * df.T),
+                f1.T,
+                f0.T + (delta * dxi * df.T),
             ).T
             return fq
 
         def derivative1_linear():
-            df = f[i] - f[i - 1]
-            dx = x[i] - x[i - 1]
+            f0, f1 = _take_neighbor_data(f, i)
+            x0, x1 = _take_neighbor_data(x, i)
+            df = f1 - f0
+            dx = x1 - x0
             dxi = jnp.where(dx == 0, 0, 1 / dx)
             return (df.T * dxi).T
 
@@ -643,15 +647,16 @@ def interp1d(
         assert method in CUBIC_METHODS
         assert fx is not None and fx.shape == f.shape
 
-        dx = x[i] - x[i - 1]
-        delta = xq - x[i - 1]
+        x0, x1 = _take_neighbor_data(x, i)
+        dx = x1 - x0
+        delta = xq - x0
         dxi = jnp.where(dx == 0, 0, 1 / dx)
         t = delta * dxi
 
-        f0 = f[i - 1]
-        f1 = f[i]
-        fx0 = (fx[i - 1].T * dx).T
-        fx1 = (fx[i].T * dx).T
+        f0, f1 = _take_neighbor_data(f, i)
+        fx0, fx1 = _take_neighbor_data(fx, i)
+        fx0 = (fx0.T * dx).T
+        fx1 = (fx1.T * dx).T
 
         F = jnp.stack([f0, f1, fx0, fx1], axis=0).T
         coef = jnp.vectorize(jnp.matmul, signature="(n,n),(n)->(n)")(A_CUBIC, F).T
@@ -802,8 +807,8 @@ def interp2d(  # noqa: C901 - FIXME: break this up into simpler pieces
 
     # find the indices
     if not even_spacing:
-        i = jnp.clip(jnp.searchsorted(x, xq, side="right"), 1, len(x) - 1)
-        j = jnp.clip(jnp.searchsorted(y, yq, side="right"), 1, len(y) - 1)
+        i = jnp.clip(jnp.searchsorted(x, xq, side="right").astype(int), 1, len(x) - 1)
+        j = jnp.clip(jnp.searchsorted(y, yq, side="right").astype(int), 1, len(y) - 1)
     else:
         dx = x[1] - x[0]
         dy = y[1] - y[0]
@@ -816,12 +821,11 @@ def interp2d(  # noqa: C901 - FIXME: break this up into simpler pieces
             # because of the regular spaced grid we know that the nearest point
             # will be one of the 4 neighbors on the grid, so we first find those
             # and then take the nearest one among them.
-            neighbors_x = jnp.array(
-                [[x[i], x[i - 1], x[i], x[i - 1]], [y[j], y[j], y[j - 1], y[j - 1]]]
-            )
-            neighbors_f = jnp.array(
-                [f[i, j].T, f[i - 1, j].T, f[i, j - 1].T, f[i - 1, j - 1].T]
-            )
+            x0, x1 = _take_neighbor_data(x, i)
+            y0, y1 = _take_neighbor_data(y, j)
+            F = _take_neighbor_data(f, i, j)
+            neighbors_x = jnp.array([[x1, x0, x1, x0], [y1, y1, y0, y0]])
+            neighbors_f = jnp.array([F[1, 1].T, F[0, 1].T, F[1, 0].T, F[0, 0].T])
             xyq = jnp.array([xq, yq])
             dist = jnp.linalg.norm(neighbors_x - xyq[:, None, :], axis=0)
             idx = jnp.argmin(dist, axis=0)
@@ -835,14 +839,9 @@ def interp2d(  # noqa: C901 - FIXME: break this up into simpler pieces
         )
 
     elif method == "linear":
-        f00 = f[i - 1, j - 1]
-        f01 = f[i - 1, j]
-        f10 = f[i, j - 1]
-        f11 = f[i, j]
-        x0 = x[i - 1]
-        x1 = x[i]
-        y0 = y[j - 1]
-        y1 = y[j]
+        F = _take_neighbor_data(f, i, j)
+        x0, x1 = _take_neighbor_data(x, i)
+        y0, y1 = _take_neighbor_data(y, j)
         dx = x1 - x0
         dxi = jnp.where(dx == 0, 0, 1 / dx)
         dy = y1 - y0
@@ -857,7 +856,6 @@ def interp2d(  # noqa: C901 - FIXME: break this up into simpler pieces
 
         tx = jax.lax.switch(derivative_x, [dx0, dx1, dx2])
         ty = jax.lax.switch(derivative_y, [dy0, dy1, dy2])
-        F = jnp.array([[f00, f01], [f10, f11]])
         fq = (dxi * dyi * jnp.einsum("ijk...,ik,jk->k...", F, tx, ty).T).T
 
     else:
@@ -865,12 +863,14 @@ def interp2d(  # noqa: C901 - FIXME: break this up into simpler pieces
         assert fx is not None and fy is not None and fxy is not None
         assert fx.shape == fy.shape == fxy.shape == f.shape
 
-        dx = x[i] - x[i - 1]
-        deltax = xq - x[i - 1]
+        x0, x1 = _take_neighbor_data(x, i)
+        y0, y1 = _take_neighbor_data(y, j)
+        dx = x1 - x0
+        deltax = xq - x0
         dxi = jnp.where(dx == 0, 0, 1 / dx)
         tx = deltax * dxi
-        dy = y[j] - y[j - 1]
-        deltay = yq - y[j - 1]
+        dy = y1 - y0
+        deltay = yq - y0
         dyi = jnp.where(dy == 0, 0, 1 / dy)
         ty = deltay * dyi
 
@@ -881,10 +881,11 @@ def interp2d(  # noqa: C901 - FIXME: break this up into simpler pieces
         fs["fxy"] = fxy
         fsq = OrderedDict()
         for ff in fs.keys():
+            F = _take_neighbor_data(fs[ff], i, j)
             for jj in [0, 1]:
                 for ii in [0, 1]:
                     s = ff + str(ii) + str(jj)
-                    fsq[s] = fs[ff][i - 1 + ii, j - 1 + jj]
+                    fsq[s] = F[ii, jj]
                     if "x" in ff:
                         fsq[s] = (dx * fsq[s].T).T
                     if "y" in ff:
@@ -1085,9 +1086,9 @@ def interp3d(  # noqa: C901 - FIXME: break this up into simpler pieces
 
     # find the indices
     if not even_spacing:
-        i = jnp.clip(jnp.searchsorted(x, xq, side="right"), 1, len(x) - 1)
-        j = jnp.clip(jnp.searchsorted(y, yq, side="right"), 1, len(y) - 1)
-        k = jnp.clip(jnp.searchsorted(z, zq, side="right"), 1, len(z) - 1)
+        i = jnp.clip(jnp.searchsorted(x, xq, side="right").astype(int), 1, len(x) - 1)
+        j = jnp.clip(jnp.searchsorted(y, yq, side="right").astype(int), 1, len(y) - 1)
+        k = jnp.clip(jnp.searchsorted(z, zq, side="right").astype(int), 1, len(z) - 1)
     else:
         dx = x[1] - x[0]
         dy = y[1] - y[0]
@@ -1102,23 +1103,27 @@ def interp3d(  # noqa: C901 - FIXME: break this up into simpler pieces
             # because of the regular spaced grid we know that the nearest point
             # will be one of the 8 neighbors on the grid, so we first find those
             # and then take the nearest one among them.
+            x0, x1 = _take_neighbor_data(x, i)
+            y0, y1 = _take_neighbor_data(y, j)
+            z0, z1 = _take_neighbor_data(z, k)
+            F = _take_neighbor_data(f, i, j, k)
             neighbors_x = jnp.array(
                 [
-                    [x[i], x[i - 1], x[i], x[i - 1], x[i], x[i - 1], x[i], x[i - 1]],
-                    [y[j], y[j], y[j - 1], y[j - 1], y[j], y[j], y[j - 1], y[j - 1]],
-                    [z[k], z[k], z[k], z[k], z[k - 1], z[k - 1], z[k - 1], z[k - 1]],
+                    [x1, x0, x1, x0, x1, x0, x1, x0],
+                    [y1, y1, y0, y0, y1, y1, y0, y0],
+                    [z1, z1, z1, z1, z0, z0, z0, z0],
                 ]
             )
             neighbors_f = jnp.array(
                 [
-                    f[i, j, k].T,
-                    f[i - 1, j, k].T,
-                    f[i, j - 1, k].T,
-                    f[i - 1, j - 1, k].T,
-                    f[i, j, k - 1].T,
-                    f[i - 1, j, k - 1].T,
-                    f[i, j - 1, k - 1].T,
-                    f[i - 1, j - 1, k - 1].T,
+                    F[1, 1, 1].T,
+                    F[0, 1, 1].T,
+                    F[1, 0, 1].T,
+                    F[0, 0, 1].T,
+                    F[1, 1, 0].T,
+                    F[0, 1, 0].T,
+                    F[1, 0, 0].T,
+                    F[0, 0, 0].T,
                 ]
             )
             xyzq = jnp.array([xq, yq, zq])
@@ -1136,20 +1141,10 @@ def interp3d(  # noqa: C901 - FIXME: break this up into simpler pieces
         )
 
     elif method == "linear":
-        f000 = f[i - 1, j - 1, k - 1]
-        f001 = f[i - 1, j - 1, k]
-        f010 = f[i - 1, j, k - 1]
-        f100 = f[i, j - 1, k - 1]
-        f110 = f[i, j, k - 1]
-        f011 = f[i - 1, j, k]
-        f101 = f[i, j - 1, k]
-        f111 = f[i, j, k]
-        x0 = x[i - 1]
-        x1 = x[i]
-        y0 = y[j - 1]
-        y1 = y[j]
-        z0 = z[k - 1]
-        z1 = z[k]
+        F = _take_neighbor_data(f, i, j, k)
+        x0, x1 = _take_neighbor_data(x, i)
+        y0, y1 = _take_neighbor_data(y, j)
+        z0, z1 = _take_neighbor_data(z, k)
         dx = x1 - x0
         dxi = jnp.where(dx == 0, 0, 1 / dx)
         dy = y1 - y0
@@ -1171,7 +1166,6 @@ def interp3d(  # noqa: C901 - FIXME: break this up into simpler pieces
         ty = jax.lax.switch(derivative_y, [dy0, dy1, dy2])
         tz = jax.lax.switch(derivative_z, [dz0, dz1, dz2])
 
-        F = jnp.array([[[f000, f001], [f010, f011]], [[f100, f101], [f110, f111]]])
         fq = (dxi * dyi * dzi * jnp.einsum("lijk...,lk,ik,jk->k...", F, tx, ty, tz).T).T
 
     else:
@@ -1196,18 +1190,22 @@ def interp3d(  # noqa: C901 - FIXME: break this up into simpler pieces
             == f.shape
         )
 
-        dx = x[i] - x[i - 1]
-        deltax = xq - x[i - 1]
+        x0, x1 = _take_neighbor_data(x, i)
+        y0, y1 = _take_neighbor_data(y, j)
+        z0, z1 = _take_neighbor_data(z, k)
+
+        dx = x1 - x0
+        deltax = xq - x0
         dxi = jnp.where(dx == 0, 0, 1 / dx)
         tx = deltax * dxi
 
-        dy = y[j] - y[j - 1]
-        deltay = yq - y[j - 1]
+        dy = y1 - y0
+        deltay = yq - y0
         dyi = jnp.where(dy == 0, 0, 1 / dy)
         ty = deltay * dyi
 
-        dz = z[k] - z[k - 1]
-        deltaz = zq - z[k - 1]
+        dz = z1 - z0
+        deltaz = zq - z0
         dzi = jnp.where(dz == 0, 0, 1 / dz)
         tz = deltaz * dzi
 
@@ -1222,11 +1220,12 @@ def interp3d(  # noqa: C901 - FIXME: break this up into simpler pieces
         fs["fxyz"] = fxyz
         fsq = OrderedDict()
         for ff in fs.keys():
+            F = _take_neighbor_data(fs[ff], i, j, k)
             for kk in [0, 1]:
                 for jj in [0, 1]:
                     for ii in [0, 1]:
                         s = ff + str(ii) + str(jj) + str(kk)
-                        fsq[s] = fs[ff][i - 1 + ii, j - 1 + jj, k - 1 + kk]
+                        fsq[s] = F[ii, jj, kk]
                         if "x" in ff:
                             fsq[s] = (dx * fsq[s].T).T
                         if "y" in ff:
@@ -1274,6 +1273,50 @@ def _move_query_axes(fq: jax.Array, nq: int, axis: tuple[int, ...]) -> jax.Array
     """Move leading nq query dimensions to where the grid axes of f started."""
     start = min(axis)
     return jnp.moveaxis(fq, tuple(range(nq)), tuple(range(start, start + nq)))
+
+
+def _take_neighbor_data(f: jax.Array, *idx: jax.Array) -> jax.Array:
+    """Get the values of f on the grid cell containing each query point.
+
+    For n grid dimensions, each query point lies in a cell with 2**n corners
+    (2 in 1D, 2x2 in 2D, 2x2x2 in 3D). This returns f at those corners.
+
+    Parameters
+    ----------
+    f : ndarray, shape(N1, ..., Nn, ...)
+        Values on the grid. The first n axes are the grid axes; any trailing axes
+        (e.g. several fields stacked together) are returned whole.
+    *idx : ndarray, shape(Nq,)
+        One index array per grid axis (i, j, k, ...). The cell of query point q
+        spans [i[q] - 1, i[q]] along the first axis, [j[q] - 1, j[q]] along the
+        second, and so on.
+
+    Returns
+    -------
+    out : ndarray, shape(2, ..., 2, Nq, ...)
+        n axes of size 2 for the cell corners, then the query axis, then the
+        trailing axes of f. For example in 3D, out[a, b, c, q] is
+        f[i[q] - 1 + a, j[q] - 1 + b, k[q] - 1 + c], so out[0, 0, 0] is the
+        lower corner and out[1, 1, 1] the upper corner for every query point.
+
+    Notes
+    -----
+    This uses one batched dynamic_slice instead of indexing f separately for each
+    corner, which compiles to a single gather and is faster when f does not fit
+    in cache.
+    """
+    n = len(idx)
+
+    def take(*start):
+        return jax.lax.dynamic_slice(
+            f,
+            # lower corner of the cell, and the start of any trailing axes
+            tuple(s - 1 for s in start) + (0,) * (f.ndim - n),
+            # 2 points along each grid axis, all of each trailing axis
+            (2,) * n + f.shape[n:],
+        )
+
+    return jax.vmap(take, out_axes=n)(*idx)
 
 
 def _approx_df(
